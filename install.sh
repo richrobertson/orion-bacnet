@@ -4,6 +4,8 @@
 #   sudo ./install.sh                        install or upgrade (idempotent)
 #   sudo ./install.sh --with-rtl433          also install rtl-433 even if mode is state_file
 #   sudo ./install.sh --unattended-upgrades  also set up security-only automatic updates
+#   sudo ./install.sh --no-system-tuning     leave the host alone (no hardware watchdog,
+#                                            journald or apt python3-venv); automatic on Proxmox
 #   sudo ./install.sh --uninstall            remove units, venv and code; KEEPS
 #                                            /etc/water-bacnet and /var/lib/water-bacnet
 #
@@ -42,13 +44,14 @@ SRC=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 WITH_RTL433=0
 UNINSTALL=0
 UNATTENDED=0
+SYSTEM_TUNING=1
 
 log()  { printf '\033[1m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33mWARNING: %s\033[0m\n' "$*" >&2; }
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 usage() {
-    sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
@@ -56,11 +59,21 @@ for arg in "$@"; do
     case "$arg" in
         --with-rtl433)         WITH_RTL433=1 ;;
         --unattended-upgrades) UNATTENDED=1 ;;
+        --no-system-tuning)    SYSTEM_TUNING=0 ;;
         --uninstall)           UNINSTALL=1 ;;
         -h|--help)             usage 0 ;;
         *)                     warn "unknown argument: $arg"; usage 2 ;;
     esac
 done
+
+# On a shared host (a hypervisor, a box that already runs other services) the watchdog,
+# journald and system packages are the host's business, not this package's. Proxmox runs its own
+# watchdog-mux for HA fencing, so never add a second one there.
+if [[ -d /etc/pve && $SYSTEM_TUNING -eq 1 ]]; then
+    log "Proxmox host detected; skipping host-wide tuning (as with --no-system-tuning)"
+    SYSTEM_TUNING=0
+fi
+
 
 [[ $EUID -eq 0 ]] || die "run as root: sudo $0 $*"
 command -v systemctl >/dev/null || die "systemd is required"
@@ -175,7 +188,13 @@ NEED_RTL433=0
 [[ $MODE == rtl_433 || $WITH_RTL433 -eq 1 ]] && NEED_RTL433=1
 
 # ---------------------------------------------------------------- packages
-apt_install python3-venv
+if [[ $SYSTEM_TUNING -eq 1 ]]; then
+    apt_install python3-venv
+else
+    # No apt on a shared host: python3-venv can pull a partial interpreter upgrade.
+    # venv-check.sh builds the venv --without-pip from the vendored wheel instead.
+    log "Not installing python3-venv (--no-system-tuning); building the venv without pip"
+fi
 if [[ $NEED_RTL433 -eq 1 ]]; then
     apt_install rtl-433
     # Recovery step 3 (remote replug of the dongle) needs uhubctl.
@@ -321,7 +340,9 @@ fi
 # ---------------------------------------------------------------- hardware watchdog
 # The BCM2835 watchdog reboots the Pi when systemd (PID 1) stops petting it for 15 s,
 # i.e. on a kernel or PID 1 hang; RebootWatchdogSec bounds a reboot that hangs.
-if [[ -e /dev/watchdog ]]; then
+if [[ $SYSTEM_TUNING -eq 0 ]]; then
+    log "Hardware watchdog: left to the host (--no-system-tuning)"
+elif [[ -e /dev/watchdog ]]; then
     if install_content "$WATCHDOG_DROPIN" 0644 "# installed by water-bacnet: hardware watchdog (docs/HARDWARE.md, recovery step 4)
 [Manager]
 RuntimeWatchdogSec=15s
@@ -337,7 +358,9 @@ fi
 # Persistent and size-capped: after a power cut or a watchdog reboot, the previous
 # boot's log (journalctl -b -1) is the only record of why. Volatile storage would lose
 # exactly those logs. The caps bound SD-card use and wear (README "Logs and SD wear").
-if install_content "$JOURNALD_DROPIN" 0644 "# installed by water-bacnet: keep previous boots' logs, bounded
+if [[ $SYSTEM_TUNING -eq 0 ]]; then
+    log "Journal: left to the host (--no-system-tuning)"
+elif install_content "$JOURNALD_DROPIN" 0644 "# installed by water-bacnet: keep previous boots' logs, bounded
 [Journal]
 Storage=persistent
 SystemMaxUse=64M
