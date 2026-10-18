@@ -74,7 +74,9 @@ class Rig:
     def __init__(self, tmp_path, monkeypatch, ok=True, **cfg_kw):
         self.cfg = make_cfg(tmp_path, **cfg_kw)
         self.src = Rtl433Source(self.cfg, MeterTracker(METER_ID))
-        self.m0 = self.src._ladder_ref
+        # Whole-second base so m0 + t is exact: a fractional monotonic() (any fresh Linux
+        # box) makes "exactly one silent period later" land a hair short of the threshold.
+        self.m0 = self.src._ladder_ref = float(int(self.src._ladder_ref))
         self.w0 = 1_790_000_000.0
         self.calls = []
         self.ok = ok
