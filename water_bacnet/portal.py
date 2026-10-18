@@ -89,7 +89,7 @@ REFRESH_S = 15
 # ---------------------------------------------------------------------------------
 # files
 
-def atomic_write(path: Path, data: bytes, mode: int = 0o640) -> None:
+def atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
     """tmp + fsync + rename + fsync(dir). The old file is intact until the rename."""
     path = Path(path)
     tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
@@ -754,7 +754,7 @@ class Portal:
             t0 = time.time()
             marker = {"sha256": _sha(data), "started": t0, "verify": verify,
                       "portal_changed": old_portal != cfg.portal}
-            atomic_write(self.pending_path, json.dumps(marker).encode(), mode=0o640)
+            atomic_write(self.pending_path, json.dumps(marker).encode())
             atomic_write(self.config_path, data)
             log.info("saved new config %s (sha256 %s)", self.config_path, marker["sha256"][:12])
             self.apply_state = {"state": "pending", "started": t0, "sha256": marker["sha256"],
@@ -1304,7 +1304,9 @@ class Handler(BaseHTTPRequestHandler):
         except (ConnectionError, TimeoutError, socket.timeout):
             self.close_connection = True
         except Exception:
-            log.exception("error handling %s %s", method, self.path[:200])
+            # Escape the client-controlled path so CR/LF can't forge journal lines.
+            log.exception("error handling %s %s", method,
+                          self.path[:200].encode("unicode_escape").decode("ascii"))
             self._error_page(500, "Internal error. It has been logged; the portal keeps running.")
 
     def _error_page(self, status: int, message: str):
