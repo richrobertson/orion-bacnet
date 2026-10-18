@@ -1,0 +1,114 @@
+# orion-bacnet (water-bacnet) configuration -> /etc/water-bacnet/config.toml
+# Every key except [meter] id is optional; the values shown are the defaults.
+
+[meter]
+# REQUIRED. The meter's on-air Badger ORION id; 0 = not set, and the service will not
+# start until it is. It is the low 24 bits of the serial number stamped on the ORION
+# endpoint (serial & 0xFFFFFF; e.g. serial 24431537 -> id 7654321). Confirm it on the
+# air near the meter with
+#     rtl_433 -f 916.45M -s 1600k -R 223 -F json
+# and look for "model":"Badger-ORION" packets with that "id". You can also set it on
+# the web portal (Settings).
+id = 0
+# Feed is stale (BACnet fault + Feed Stale = active) when the last packet is older
+# than this. ~22 packets/hour is normal and a flat register for hours is normal;
+# only packet age counts.
+stale_after_s = 900
+
+[source]
+# "rtl_433": run rtl_433 on a local RTL-SDR (Raspberry Pi).
+# "state_file": follow an existing collector's state.json (e.g. an SDR collector
+#               running on another host that writes the same schema).
+mode = "rtl_433"
+state_file = "/var/lib/water-meter/state.json"
+
+rtl433_path = "rtl_433"
+# rtl_433 -d argument. "" = the first dongle rtl_433 finds. Recommended: pin the
+# dongle by its USB serial, e.g. ":00000001" (read it with `rtl_test` or
+# `rtl_eeprom`; set a unique one with `rtl_eeprom -s`), so another dongle or a USB
+# re-enumeration can never make rtl_433 open the wrong one. The recovery helper also
+# uses the serial to find which USB device to reset.
+device = ""
+frequency = "916.45M"
+sample_rate = "1600k"
+# Badger ORION decoder: 223 in rtl_433 25.02, 219 in older builds (check `rtl_433 -R help`).
+protocol = 223
+# Restart rtl_433 when no packet has arrived for this long (RTL-SDR dongles wedge).
+restart_if_silent_s = 1800
+# Extra arguments appended to the rtl_433 command line.
+extra_args = []
+
+[storage]
+# state.json (survives restarts) and raw/YYYY-MM-DD.jsonl live here.
+state_dir = "/var/lib/water-bacnet"
+# Raw packets from OUR meter (accepted + dropped-but-valid), one file per day. ~60 MB/yr;
+# they make every metric re-derivable later, so keep them rather than turning this off.
+raw_log = true
+# raw/*.jsonl older than this are deleted (checked daily). 1-3650.
+raw_retention_days = 365
+# state.json is rewritten at most this often (fewer SD-card writes); always on stop.
+save_interval_s = 900
+
+[bacnet]
+# "auto" = primary IPv4/prefix of the default-route interface, or e.g. "192.0.2.10/24".
+bind = "auto"
+port = 47808
+device_instance = 2801
+device_name = "WaterMeter"
+vendor_id = 999
+# Seconds between pushes of new values into the BACnet objects (and state_file re-reads).
+refresh_s = 15
+model_name = "Badger ORION via rtl_433"
+description = "Water meter (Badger ORION endpoint, read with rtl_433)"
+# BACnet Device "location" property (free text, optional).
+location = ""
+
+# Optional object name overrides:
+# [bacnet.object_names]
+# "analogInput:1" = "Meter Register"
+
+[recovery]
+# Remote recovery ladder for a wedged RTL-SDR (rtl_433 mode), one step per silent
+# period (restart_if_silent_s): restart rtl_433 -> usb_reset -> power_cycle -> reboot.
+# Steps set to false are skipped. The privileged steps are done by the root helper
+# (water-bacnet-helper.service), which reads THESE values from this file itself and
+# enforces its own rate limits; the service only asks for an action by name.
+usb_reset = true
+power_cycle = true
+uhubctl_path = "uhubctl"
+# Pi 4: hub 1-1, and all four USB ports switch together.
+hub_location = "1-1"
+# "" = every port of hub_location (the only option that works on a Pi 4).
+hub_port = ""
+# Seconds the dongle's 5 V stays off during a power cycle (1-60).
+cycle_delay_s = 5
+# Last resort: reboot the Pi. Off by default.
+reboot = false
+usb_vid_pid = "0bda:2838"
+max_power_cycles_per_day = 4
+max_reboots_per_week = 1
+# How long the service waits for the helper's answer.
+step_timeout_s = 120
+
+[health]
+# Box health over BACnet: AI12 CPU temp, AI13 throttle flags, AI14/AI15 enclosure
+# temperature/humidity, BI2 throttled/under-voltage. A missing sensor shows as
+# reliability no-sensor (fault) on its object; it never stops the service.
+cpu_temp = true
+thermal_path = "/sys/class/thermal/thermal_zone0/temp"
+throttled = true
+vcgencmd_path = "vcgencmd"
+# "auto" probes an SHT31 at 0x44, then a BME280 at 0x76 / 0x77. "none" = no sensor.
+enclosure_sensor = "auto"
+i2c_bus = 1
+# 0 = probe the addresses above; or force one, e.g. 0x45 or 0x77.
+i2c_address = 0
+poll_s = 60
+
+[portal]
+# Web configuration portal (water-bacnet-portal.service). Plain HTTP: LAN only.
+# Changing these restarts the portal; if it cannot listen it falls back to 0.0.0.0:8080.
+listen = "0.0.0.0"
+port = 8080
+# Status page and /api/status readable without logging in (read-only).
+public_status = true

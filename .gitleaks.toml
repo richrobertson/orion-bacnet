@@ -1,0 +1,11 @@
+# gitleaks config: the built-in default rules, unchanged.
+#
+# No allowlist is needed. The only credential-like strings in the repo are the
+# portal tests' throwaway passwords (tests/test_portal.py, e.g. "correct horse
+# battery"), and the default rules do not flag them (`gitleaks dir` and
+# `gitleaks git` were both clean on 2026-10-18). If a future fake token in
+# tests/fixtures/ is flagged, allowlist that path here rather than the rule.
+title = "orion-bacnet gitleaks config"
+
+[extend]
+useDefault = true

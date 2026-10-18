@@ -1,0 +1,98 @@
+[Unit]
+Description=Badger ORION water meter BACnet/IP server (water-bacnet, orion-bacnet)
+Documentation=file:///opt/water-bacnet/README.md
+# time-sync.target: start after the clock is set where an NTP client provides it (the
+# Pi has no RTC). Deliberately NOT systemd-time-wait-sync.service: that blocks boot
+# until NTP answers, and with the NTP server unreachable BACnet would never start.
+# The service copes with a wrong wall clock itself (monotonic ages).
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+# Restart every 10 s, forever: never give up on an unattended appliance.
+StartLimitIntervalSec=0
+
+[Service]
+# notify: READY=1 once the BACnet sockets are bound (python -m water_bacnet sends it),
+# so "active" means "serving". WATCHDOG=1 comes from the BACnet refresh loop and only
+# while the meter source's own loop is alive: a wedged event loop, a hung refresh or
+# a stuck source loop stops the pings and systemd restarts the service.
+Type=notify
+NotifyAccess=main
+WatchdogSec=120
+User=water-bacnet
+Group=water-bacnet
+# RTL-SDR access (udev gives the dongle to plugdev)
+SupplementaryGroups=plugdev
+
+Environment=PYTHONPATH=/opt/water-bacnet
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/opt/water-bacnet
+
+# "+" = runs as root, outside the sandbox below, for this one command only: if a Debian
+# Python upgrade broke the venv (import bacpypes3 fails, or pyvenv.cfg names another
+# Python), rebuild it OFFLINE from /opt/water-bacnet/vendor. /opt is root-owned and
+# read-only to the service on purpose, so the unprivileged main process cannot do it.
+ExecStartPre=+/opt/water-bacnet/libexec/venv-check.sh
+# Wait up to 60 s for an explicit bind address to exist (or a default route for
+# bind = "auto"); an explicit address that never appears fails the start and
+# Restart=always tries again.
+ExecStartPre=/opt/water-bacnet/libexec/wait-for-bind.sh /etc/water-bacnet/config.toml 60
+ExecStart=/opt/water-bacnet/venv/bin/python -m water_bacnet --config /etc/water-bacnet/config.toml
+# venv check (a rebuild takes ~30 s on a Pi 4) + 60 s bind wait + 15 s socket check.
+TimeoutStartSec=180
+# always (not on-failure): the config watcher exits 0 when config.toml changes
+# (e.g. saved from the web portal) and systemd starts us again on the new file.
+Restart=always
+RestartSec=10
+# rtl_433 + Python use ~60 MB; this bounds a leak instead of letting it starve the Pi.
+MemoryMax=256M
+KillMode=control-group
+TimeoutStopSec=15
+
+# /var/lib/water-bacnet (state.json, raw/*.jsonl) -- the only writable path
+StateDirectory=water-bacnet
+StateDirectoryMode=0750
+# /run/water-bacnet/main-status.json: heartbeat read by the web portal (tmpfs, no
+# SD-card wear). Preserved across restarts so the portal can see why a start failed.
+RuntimeDirectory=water-bacnet
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+UMask=0027
+
+# Hardening. UDP 47808 is > 1024, so no capabilities at all.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# AF_NETLINK: `ip -j` (bind = "auto") and libusb device discovery
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+# Devices: NOT PrivateDevices (rtl_433 needs the real /dev/bus/usb). Closed policy
+# keeps /dev/null & co; USB device nodes are allowed for the RTL-SDR.
+DevicePolicy=closed
+DeviceAllow=char-usb_device rw
+# [health]: I2C enclosure sensor (/dev/i2c-N, group i2c) and `vcgencmd get_throttled`
+# (/dev/vchiq or /dev/vcio, group video). install.sh adds the user to those groups when
+# they exist. A device that does not exist (not a Pi) is skipped with a warning.
+DeviceAllow=char-i2c rw
+DeviceAllow=/dev/vchiq rw
+DeviceAllow=/dev/vcio rw
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=water-bacnet
+
+[Install]
+WantedBy=multi-user.target

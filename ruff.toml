@@ -1,0 +1,11 @@
+# Lint for correctness only: syntax errors, undefined names, unused imports and
+# flake8-bugbear. Style is not enforced.
+target-version = "py311"
+line-length = 100
+extend-exclude = ["vendor", ".venv"]
+
+[lint]
+select = ["E9", "F63", "F7", "F82", "F401", "B"]
+# B904 (raise ... from err inside except) is about tracebacks, not correctness;
+# Python already chains the original exception implicitly.
+ignore = ["B904"]

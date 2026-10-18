@@ -1,0 +1,35 @@
+name: pip-audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "53 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pip-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install pip-audit (hash-checked)
+        run: python -m pip install --require-hashes -r .github/requirements-audit.txt
+      - name: Audit pinned requirements
+        # --disable-pip: audit the pinned, hashed files as written; nothing is installed.
+        run: pip-audit --require-hashes --disable-pip --progress-spinner off -r requirements.txt -r requirements-dev.txt

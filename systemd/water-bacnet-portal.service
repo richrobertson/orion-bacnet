@@ -1,0 +1,63 @@
+[Unit]
+Description=Badger ORION water meter web configuration portal (water-bacnet-portal)
+Documentation=file:///opt/water-bacnet/README.md
+After=network-online.target
+Wants=network-online.target
+# Separate from water-bacnet.service on purpose: the portal must keep working while
+# the BACnet service is crash-looping on a bad config. Never give up restarting.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=water-bacnet
+Group=water-bacnet
+# journalctl -u water-bacnet needs group systemd-journal (install.sh adds the user).
+
+Environment=PYTHONPATH=/opt/water-bacnet
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/opt/water-bacnet
+
+# The SYSTEM python3, not the venv: the portal is stdlib-only, so it keeps working (and
+# can show what is wrong) even when a Python upgrade has broken the venv.
+ExecStart=/usr/bin/python3 -m water_bacnet.portal --config /etc/water-bacnet/config.toml
+# always: the portal also exits 0 after its own listen/port setting changes.
+Restart=always
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=15
+
+# The portal rewrites config.toml (+ .last-good, backups, portal.passwd).
+ReadWritePaths=/etc/water-bacnet -/var/lib/water-bacnet
+UMask=0027
+MemoryMax=128M
+TasksMax=64
+
+# Hardening, same style as water-bacnet.service. TCP 8080 > 1024: no capabilities.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# AF_UNIX: systemctl is-active / journalctl talk to systemd over local sockets
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=water-bacnet-portal
+
+[Install]
+WantedBy=multi-user.target

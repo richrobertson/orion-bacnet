@@ -1,0 +1,38 @@
+{
+ "updated": "2026-10-18T09:58:12+00:00",
+ "meter_id": 7654321,
+ "volume": 41774.0,
+ "volume_units": "cubic_feet",
+ "flow_per_hour": 0.0,
+ "flow_recent_per_hour": 0.0,
+ "seconds_since_packet": 221.0,
+ "snr": 16.706,
+ "rssi": -8.626,
+ "freq": 915.993,
+ "packets_total": 12114,
+ "packets_per_hour": 21.65,
+ "collector_uptime_s": 2014366,
+ "rtl433_restarts": 0,
+ "history": [
+  [
+   1792294092.0,
+   41770.0
+  ],
+  [
+   1792303092.0,
+   41771.0
+  ],
+  [
+   1792306692.0,
+   41772.0
+  ],
+  [
+   1792312092.0,
+   41773.0
+  ],
+  [
+   1792316071.0,
+   41774.0
+  ]
+ ]
+}

@@ -1,0 +1,55 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems go to the private advisory form (see the link on the
+        previous page), not here. Please remove passwords and anything private
+        from logs before pasting.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag or commit (shown on the portal status page).
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: source-mode
+    attributes:
+      label: Source mode
+      options:
+        - rtl_433 (SDR on the Pi)
+        - state_file (following a collector)
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Hardware and OS
+      placeholder: Raspberry Pi 4 2GB, Raspberry Pi OS Bookworm arm64, Python 3.11.2
+  - type: input
+    id: rtl433
+    attributes:
+      label: rtl_433 version
+      description: Output of `rtl_433 -V`, if in rtl_433 mode.
+  - type: textarea
+    id: check
+    attributes:
+      label: Output of `python -m water_bacnet --check`
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`journalctl -u water-bacnet -n 200` (and `-u water-bacnet-portal` if relevant)."
+      render: text

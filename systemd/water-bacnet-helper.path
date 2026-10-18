@@ -1,0 +1,16 @@
+[Unit]
+Description=Trigger the water-bacnet root recovery helper on a request file
+Documentation=file:///opt/water-bacnet/docs/HARDWARE.md
+
+[Path]
+# The unprivileged water-bacnet service drops request.json here (atomically, via
+# rename) to ask for usb_reset / power_cycle / reboot. The helper always removes the
+# request (or renames it to request.json.bad-<ts>), so this does not re-trigger.
+PathExists=/var/lib/water-bacnet/helper/request.json
+# The directory belongs to water-bacnet (install.sh creates it, 0750); never let
+# systemd create it as root.
+MakeDirectory=no
+Unit=water-bacnet-helper.service
+
+[Install]
+WantedBy=paths.target

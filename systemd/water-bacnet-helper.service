@@ -1,0 +1,42 @@
+[Unit]
+Description=water-bacnet root recovery helper (USB reset / USB power cycle / reboot)
+Documentation=file:///opt/water-bacnet/docs/HARDWARE.md
+# Backstop against a re-trigger loop if request.json ever could not be removed: the
+# helper always removes/renames it, so legitimate use is a few starts per hour.
+# Hitting this limit stops the helper (and the .path) until reset-failed or reboot.
+StartLimitIntervalSec=60
+StartLimitBurst=20
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=PYTHONPATH=/opt/water-bacnet
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/opt/water-bacnet
+# System python, not the venv: the helper is stdlib-only, so USB recovery still works
+# while the venv is broken. All parameters come from /etc/water-bacnet/config.toml,
+# never from the request file.
+ExecStart=/usr/bin/python3 -m water_bacnet.helper --config /etc/water-bacnet/config.toml
+# uhubctl -a cycle -d <=60 plus a margin
+TimeoutStartSec=180
+
+# Ledger of performed actions (rate limits): /var/lib/water-bacnet-helper/ledger.json
+StateDirectory=water-bacnet-helper
+StateDirectoryMode=0700
+UMask=0022
+
+# Minimal hardening that still allows USBDEVFS_RESET on /dev/bus/usb, uhubctl
+# (libusb + sysfs) and `systemctl reboot`. No PrivateDevices, no capability
+# restrictions: those are exactly what the actions need.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+# Request/response files ("-": do not fail if the directory is missing).
+ReadWritePaths=-/var/lib/water-bacnet/helper
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=water-bacnet-helper

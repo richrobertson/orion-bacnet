@@ -1,0 +1,9 @@
+[run]
+source = water_bacnet
+branch = true
+
+[report]
+show_missing = true
+skip_covered = false
+exclude_also =
+    if __name__ == .__main__.:
