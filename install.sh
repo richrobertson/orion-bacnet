@@ -263,6 +263,12 @@ chown -R root:root "$PREFIX"
 install -d -m 0770 -o root -g "$APP" "$ETC"
 if [[ -f $CONFIG ]]; then
     log "Keeping existing $CONFIG"
+    # A hand-made config is often root:root; the unprivileged service must read it.
+    # (The portal's own rewrites are owned by $APP and already readable.)
+    if [[ $(stat -c %U "$CONFIG") != "$APP" ]]; then
+        chgrp "$APP" "$CONFIG"
+        chmod g+r,o-rwx "$CONFIG"
+    fi
 else
     log "Installing $CONFIG (edit it, or use the web portal)"
     install -m 0640 -o root -g "$APP" "$SRC/config.example.toml" "$CONFIG"
@@ -452,7 +458,8 @@ fi
 log "Done. Logs: journalctl -u $APP -f    Config: $CONFIG"
 PORTAL_PORT=$(read_key "$CONFIG" portal port 8080)
 [[ $PORTAL_PORT =~ ^[0-9]+$ ]] || PORTAL_PORT=8080
-HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+HOST_IP=$(read_key "$CONFIG" portal listen 0.0.0.0)
+[[ $HOST_IP == 0.0.0.0 || -z $HOST_IP ]] && HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 log "Web portal: http://${HOST_IP:-<this-pi>}:$PORTAL_PORT/  (plain HTTP, LAN only)"
 if [[ -n $NEW_PASSWORD ]]; then
     echo
