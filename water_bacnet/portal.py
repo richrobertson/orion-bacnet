@@ -1305,8 +1305,8 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
         except Exception:
             # Escape the client-controlled path so CR/LF can't forge journal lines.
-            log.exception("error handling %s %s", method,
-                          self.path[:200].encode("unicode_escape").decode("ascii"))
+            safe_path = self.path[:200].replace("\r", "\\r").replace("\n", "\\n")
+            log.exception("error handling %s %s", method, safe_path)
             self._error_page(500, "Internal error. It has been logged; the portal keeps running.")
 
     def _error_page(self, status: int, message: str):
