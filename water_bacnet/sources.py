@@ -41,7 +41,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from .meter import MeterTracker, Reading, _number, parse_iso
+from .meter import MeterTracker, Reading, _number, parse_iso, scale_register
 from .usbctl import DEFAULTS
 
 log = logging.getLogger(__name__)
@@ -335,6 +335,7 @@ class Rtl433Source:
         now = time.time() if now is None else now
         mono = time.monotonic() if mono is None else mono
         r = self.tracker.reading(now, self.cfg.meter.stale_after_s, mono)
+        scale_register(r, self.cfg.meter.cuft_per_count)
         if r.stale:
             extra = [e for e in (self.last_error,) if e]
             if r.recovery_step != "none":
@@ -893,8 +894,8 @@ class StateFileSource:
             error = "no packet received yet"
         elif age > stale_after:
             error = f"no packet for {age:.0f}s"
-        return Reading(
-            volume_cuft=_number(d.get("volume")),  # cubic feet, see meter.py
+        return scale_register(Reading(
+            volume_cuft=_number(d.get("volume")),  # register counts; scaled to cu ft below
             flow_per_hour=_number(d.get("flow_per_hour")),
             flow_recent_per_hour=_number(d.get("flow_recent_per_hour")),
             seconds_since_packet=age,
@@ -907,7 +908,7 @@ class StateFileSource:
             stale=error is not None,
             error=error,
             updated=updated,
-        )
+        ), self.cfg.meter.cuft_per_count)
 
     async def run(self) -> None:
         while True:

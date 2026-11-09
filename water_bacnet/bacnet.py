@@ -142,7 +142,7 @@ def _scaled(attr: str, scale: float) -> Callable[[Any], Optional[float]]:
 
 AI_TABLE: Tuple[AISpec, ...] = (
     AISpec(1, "Meter Register", EngineeringUnits.cubicFeet,
-           "Meter register, CUBIC FEET (1:1 with the dial, 1 cu ft resolution)",
+           "Meter register, CUBIC FEET (register counts x [meter] cuft_per_count)",
            _scaled("volume_cuft", 1.0)),
     AISpec(2, "Meter Register (gallons)", EngineeringUnits.usGallons,
            "Meter register converted to US gallons (cu ft x 7.480519)",

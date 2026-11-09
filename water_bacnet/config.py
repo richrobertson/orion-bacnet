@@ -28,6 +28,10 @@ class MeterConfig:
     # service and --check refuse to run without it. See METER_ID_HELP.
     id: int = 0
     stale_after_s: float = 900.0
+    # Cubic feet per register count. The ORION endpoint sends the encoder register, whose
+    # least significant digit depends on the meter: 1 on small meters, 10 (or 100) on
+    # larger ones whose dial ends in fixed zeros. Check it against a utility bill's read.
+    cuft_per_count: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -285,6 +289,8 @@ def _check_load(cfg: Config) -> None:
          f"[bacnet] device_instance out of range: {b.device_instance}")
     need(0 <= b.vendor_id <= 65535, f"[bacnet] vendor_id must be 0-65535, got {b.vendor_id}")
     need(1 <= b.refresh_s <= 300, f"[bacnet] refresh_s must be 1-300 s, got {b.refresh_s}")
+    need(m.cuft_per_count in (0.1, 1.0, 10.0, 100.0, 1000.0),
+         f"[meter] cuft_per_count must be 0.1, 1, 10, 100 or 1000, got {m.cuft_per_count}")
     need(60 <= m.stale_after_s <= 86400,
          f"[meter] stale_after_s must be 60-86400 s, got {m.stale_after_s}")
     need(s.restart_if_silent_s >= 300,
