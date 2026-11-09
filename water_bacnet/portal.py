@@ -51,7 +51,7 @@ from .config import (
     DEFAULT_CONFIG_PATH, Config, PortalConfig, _SECTIONS, dump_toml, load_config, loads_config,
     meter_id_problem, validate,
 )
-from .meter import GALLONS_PER_CUFT, Reading, _number, parse_iso
+from .meter import GALLONS_PER_CUFT, Reading, _number, parse_iso, scale_register
 
 log = logging.getLogger("water_bacnet.portal")
 
@@ -348,7 +348,7 @@ def read_reading(cfg: Config, now: Optional[float] = None) -> Reading:
         except (TypeError, ValueError):
             return 0
 
-    return Reading(
+    return scale_register(Reading(
         volume_cuft=_number(d.get("volume")),
         flow_per_hour=_number(d.get("flow_per_hour")),
         flow_recent_per_hour=_number(d.get("flow_recent_per_hour")),
@@ -362,7 +362,7 @@ def read_reading(cfg: Config, now: Optional[float] = None) -> Reading:
         stale=error is not None,
         error=error,
         updated=updated,
-    )
+    ), cfg.meter.cuft_per_count)
 
 
 # ---------------------------------------------------------------------------------

@@ -210,3 +210,12 @@ def test_portal_problems_cover_new_sections():
     assert problems(loads_config("[meter]\nid = 7654321\n")) == []
     # explicit bind without a prefix loads, but the portal insists on one
     assert any("bind" in x for x in problems(loads_config('[bacnet]\nbind = "192.0.2.3"\n')))
+
+
+def test_cuft_per_count_default_and_validation():
+    from water_bacnet.config import loads_config
+    assert loads_config("").meter.cuft_per_count == 1.0
+    assert loads_config("[meter]\ncuft_per_count = 10\n").meter.cuft_per_count == 10.0
+    import pytest
+    with pytest.raises(ValueError):
+        loads_config("[meter]\ncuft_per_count = 7\n")

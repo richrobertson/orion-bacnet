@@ -1,8 +1,9 @@
 """Meter register tracking and the Reading handed to the BACnet layer.
 
 Hard facts that drive this module:
-- rtl_433 calls the field `volume_gal`, but for this meter it is CUBIC FEET, 1:1 with
-  the register at 1 cu ft resolution. Everything here is cubic feet.
+- rtl_433 calls the field `volume_gal`, but for this meter it is the register in
+  COUNTS of cubic feet. The tracker works in counts; scale_register() converts a
+  Reading to cubic feet with [meter] cuft_per_count (1 or 10 depending on the meter).
 - A flat register for hours is normal (light use). Staleness comes ONLY from packet
   age, never from an unchanged volume.
 - ~22 packets/hour is the healthy rate; multi-minute gaps are normal.
@@ -59,6 +60,17 @@ REBASELINE_SPAN_S = 600.0
 CLOCK_STEP_S = 2.0  # wall-monotonic offset change treated as a clock step
 CLOCK_STEP_LOG_S = 60.0  # ...and logged as a WARNING above this
 FUTURE_TOLERANCE_S = 5.0
+
+def scale_register(r: "Reading", cuft_per_count: float) -> "Reading":
+    """Register counts -> cubic feet: scale the register and both flow rates in place."""
+    k = float(cuft_per_count)
+    if k != 1.0:
+        for name in ("volume_cuft", "flow_per_hour", "flow_recent_per_hour"):
+            v = getattr(r, name)
+            if v is not None:
+                setattr(r, name, v * k)
+    return r
+
 
 RECOVERY_STEPS = ("none", "restart", "usb_reset", "power_cycle", "reboot", "exhausted")
 
@@ -255,7 +267,7 @@ class MeterTracker:
         self.last_heard_mono = mono
         self.last_result = "invalid"
 
-        # `volume_gal` is CUBIC FEET for this meter despite the name.
+        # `volume_gal` is the register in cu ft COUNTS despite the name (see scale_register).
         volume = _number(pkt.get("volume_gal", pkt.get("volume")))
         if volume is None or volume < 0:
             log.warning("dropping packet with invalid volume %r", pkt.get("volume_gal"))

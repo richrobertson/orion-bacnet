@@ -246,9 +246,12 @@ do not set BI 2.
 
 ### Units: it's cubic feet
 
-The register is **cubic feet**, 1:1 with the meter dial, with 1 cu ft resolution.
-rtl_433 calls the field `volume_gal`, but for the ORION meters this was built against it
-is cubic feet. Check AI 1 against your meter's dial once. AI 2 is the
+The register is **cubic feet**. rtl_433 calls the field `volume_gal`, but for the ORION
+meters this was built against it is the encoder register in cubic feet. Its last digit
+depends on the meter: **1 cu ft per count on small meters, 10 cu ft on larger ones**
+whose dial ends in a fixed zero. Set `[meter] cuft_per_count` to match (default 1) and
+check AI 1 once against an independent read. A utility bill is the most reliable one:
+AI 1 / 100 should equal the billed read in CCF, a few days of use apart. AI 2 is the
 only object in gallons (1 cu ft = 7.480519 US gal). The flow rates are cubic feet per
 hour (bacpypes3 0.0.110 has the `cubicFeetPerHour` unit, so no per-minute conversion
 is needed).

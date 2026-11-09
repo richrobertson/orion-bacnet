@@ -17,9 +17,11 @@ data (the radio protocol is unauthenticated), and more than one meter per proces
 ## Data facts that must be respected
 
 - **The ORION volume field is cubic feet for these meters.** rtl_433's Badger-ORION
-  decoder calls it `volume_gal`, but on the meters this was built against it is 1:1
-  with the register dial in **cubic feet**, resolution 1 cu ft. Never treat it as
-  gallons. AI 2 is the only gallons object: 1 cu ft = 7.480519 US gal. If your meter's
+  decoder calls it `volume_gal`, but on the meters this was built against it is the
+  encoder register in **cubic feet**, at `[meter] cuft_per_count` cu ft per count
+  (1 on small meters, 10 on larger ones whose dial ends in a fixed zero; a dial read
+  that ignores the fixed zero looks 1:1 and is wrong by 10x, so verify against a
+  utility bill's CCF read). Never treat it as gallons. AI 2 is the only gallons object: 1 cu ft = 7.480519 US gal. If your meter's
   register is in gallons, compare the dial against AI 1 before trusting AI 2.
 - **The on-air id is `serial & 0xFFFFFF`**, the low 24 bits of the serial number
   stamped on the endpoint. `[meter] id` has no default; the service refuses to start

@@ -14,6 +14,10 @@ id = 0
 # than this. ~22 packets/hour is normal and a flat register for hours is normal;
 # only packet age counts.
 stale_after_s = 900
+# Cubic feet per register count. The endpoint reports the encoder register; its last
+# digit is 1 cu ft on small meters but 10 cu ft on larger ones whose dial ends in a
+# fixed zero. Check against a utility bill: register x cuft_per_count / 100 = CCF.
+cuft_per_count = 1
 
 [source]
 # "rtl_433": run rtl_433 on a local RTL-SDR (Raspberry Pi).

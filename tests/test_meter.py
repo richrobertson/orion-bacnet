@@ -296,3 +296,13 @@ def test_corrupt_values_in_saved_state_tolerated():
 def test_from_json_rejects_non_objects(doc):
     with pytest.raises((ValueError, TypeError)):
         MeterTracker.from_json(doc)
+
+
+def test_scale_register_scales_volume_and_flows_only():
+    from water_bacnet.meter import Reading, scale_register
+    r = Reading.empty("x")
+    r.volume_cuft, r.flow_per_hour, r.flow_recent_per_hour, r.snr = 71840.0, 0.25, None, 13.9
+    scale_register(r, 10)
+    assert (r.volume_cuft, r.flow_per_hour, r.flow_recent_per_hour, r.snr) == (718400.0, 2.5, None, 13.9)
+    r2 = Reading.empty("x"); r2.volume_cuft = 5.0
+    assert scale_register(r2, 1).volume_cuft == 5.0
